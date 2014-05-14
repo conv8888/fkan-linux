@@ -114,7 +114,8 @@ typedef struct user_fpsimd_state elf_fpregset_t;
  */
 #define elf_check_arch(x)		((x)->e_machine == EM_AARCH64)
 
-#define elf_read_implies_exec(ex,stk)	(stk != EXSTACK_DISABLE_X)
+#define elf_read_implies_exec(ex,stk)	(test_thread_flag(TIF_32BIT) \
+					 ? (stk == EXSTACK_ENABLE_X) : 0)
 
 #define CORE_DUMP_USE_REGSET
 #define ELF_EXEC_PAGESIZE	PAGE_SIZE
