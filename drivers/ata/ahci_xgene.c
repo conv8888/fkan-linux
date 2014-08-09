@@ -28,6 +28,7 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/phy/phy.h>
+#include <linux/acpi.h>
 #include "ahci.h"
 
 /* Max # of disk per a controller */
@@ -534,6 +535,16 @@ disable_resources:
 	return rc;
 }
 
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id xgene_ahci_acpi_match[] = {
+	{ "APMC0D00", },
+	{ "APMC0D0D", },
+	{ "APMC0D09", },
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, xgene_ahci_acpi_match);
+#endif
+
 static const struct of_device_id xgene_ahci_of_match[] = {
 	{.compatible = "apm,xgene-ahci"},
 	{},
@@ -547,6 +558,7 @@ static struct platform_driver xgene_ahci_driver = {
 		.name = "xgene-ahci",
 		.owner = THIS_MODULE,
 		.of_match_table = xgene_ahci_of_match,
+		.acpi_match_table = ACPI_PTR(xgene_ahci_acpi_match),
 	},
 };
 
