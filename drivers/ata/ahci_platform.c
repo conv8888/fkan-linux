@@ -20,6 +20,9 @@
 #include <linux/platform_device.h>
 #include <linux/libata.h>
 #include <linux/ahci_platform.h>
+#ifdef CONFIG_ATA_ACPI
+#include <linux/acpi.h>
+#endif
 #include "ahci.h"
 
 static const struct ata_port_info ahci_port_info = {
@@ -71,6 +74,13 @@ static const struct of_device_id ahci_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, ahci_of_match);
 
+#ifdef CONFIG_ATA_ACPI
+static const struct acpi_device_id ahci_acpi_match[] = {
+	{ "AMDI0600", 0 }, /* AMD Seattle AHCI */
+	{ },
+};
+#endif
+
 static struct platform_driver ahci_driver = {
 	.probe = ahci_probe,
 	.remove = ata_platform_remove_one,
@@ -78,6 +88,9 @@ static struct platform_driver ahci_driver = {
 		.name = "ahci",
 		.owner = THIS_MODULE,
 		.of_match_table = ahci_of_match,
+#ifdef CONFIG_ATA_ACPI
+		.acpi_match_table = ACPI_PTR(ahci_acpi_match),
+#endif
 		.pm = &ahci_pm_ops,
 	},
 };
