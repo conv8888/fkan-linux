@@ -37,6 +37,9 @@ EXPORT_SYMBOL(acpi_pci_disabled);
 
 static int enabled_cpus;	/* Processors (GICC) with enabled flag in MADT */
 
+static char *boot_method;
+static u64 parked_address[NR_CPUS];
+
 /*
  * Since we're on ARM, the default interrupt routing model
  * clearly has to be GIC.
@@ -71,7 +74,7 @@ void __init __acpi_unmap_table(char *map, unsigned long size)
  *
  * Returns the logical cpu number which maps to MPIDR
  */
-static int acpi_map_gic_cpu_interface(u64 mpidr, u8 enabled)
+static int acpi_map_gic_cpu_interface(u64 mpidr, u64 parked_addr, u8 enabled)
 {
 	int cpu;
 
@@ -125,9 +128,11 @@ static int acpi_map_gic_cpu_interface(u64 mpidr, u8 enabled)
 		cpu = 0;
 	}
 
+	parked_address[cpu] = parked_addr;
+
 	/* CPU 0 was already initialized */
 	if (cpu) {
-		cpu_ops[cpu] = cpu_get_ops(acpi_psci_present() ? "psci" : NULL);
+		cpu_ops[cpu] = cpu_get_ops(boot_method);
 		if (!cpu_ops[cpu])
 			return -EINVAL;
 
@@ -140,7 +145,7 @@ static int acpi_map_gic_cpu_interface(u64 mpidr, u8 enabled)
 		set_cpu_possible(cpu, true);
 	} else {
 		/* get cpu0's ops, no need to return if ops is null */
-		cpu_ops[0] = cpu_get_ops(acpi_psci_present() ? "psci" : NULL);
+		cpu_ops[0] = cpu_get_ops(boot_method);
 	}
 
 	enabled_cpus++;
@@ -161,7 +166,7 @@ acpi_parse_gic_cpu_interface(struct acpi_subtable_header *header,
 	acpi_table_print_madt_entry(header);
 
 	acpi_map_gic_cpu_interface(processor->arm_mpidr & MPIDR_HWID_BITMASK,
-		processor->flags & ACPI_MADT_ENABLED);
+		processor->parked_address, processor->flags & ACPI_MADT_ENABLED);
 
 	return 0;
 }
@@ -278,9 +283,12 @@ static int __init acpi_parse_fadt(struct acpi_table_header *table)
 		 * the ACPI spec or the Parking protocol spec.
 		 */
 		if (acpi_psci_present())
-			return 0;
+			boot_method = "psci";
+		else if (IS_ENABLED(CONFIG_ARM_PARKING_PROTOCOL))
+			boot_method = "parking-protocol";
 
-		pr_warn("No PSCI support, will not bring up secondary CPUs\n");
+		if (!boot_method)
+			pr_warn("No boot method, will not bring up secondary CPUs\n");
 		return -EOPNOTSUPP;
 	}
 
@@ -336,6 +344,20 @@ void __init acpi_gic_init(void)
 		pr_err("Failed to initialize GIC IRQ controller");
 
 	early_acpi_os_unmap_memory((char *)table, tbl_size);
+}
+
+/*
+ * Parked Address in ACPI GIC structure will be used as the CPU
+ * release address
+ */
+int acpi_get_cpu_parked_address(int cpu, u64 *addr)
+{
+	if (!addr || !parked_address[cpu])
+		return -EINVAL;
+
+	*addr = parked_address[cpu];
+
+	return 0;
 }
 
 static int __init parse_acpi(char *arg)

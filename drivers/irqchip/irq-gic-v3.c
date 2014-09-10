@@ -506,9 +506,19 @@ static void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 	isb();
 }
 
+#ifdef CONFIG_ARM_PARKING_PROTOCOL
+static void gic_wakeup_parked_cpu(int cpu)
+{
+	gic_raise_softirq(cpumask_of(cpu), 0);
+}
+#endif
+
 static void gic_smp_init(void)
 {
 	set_smp_cross_call(gic_raise_softirq);
+#ifdef CONFIG_ARM_PARKING_PROTOCOL
+	set_smp_boot_wakeup_call(gic_wakeup_parked_cpu);
+#endif
 	register_cpu_notifier(&gic_cpu_notifier);
 }
 

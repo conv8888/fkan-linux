@@ -23,6 +23,7 @@
 #include <linux/string.h>
 
 extern const struct cpu_operations smp_spin_table_ops;
+extern const struct cpu_operations smp_parking_protocol_ops;
 extern const struct cpu_operations cpu_psci_ops;
 
 const struct cpu_operations *cpu_ops[NR_CPUS];
@@ -30,6 +31,9 @@ const struct cpu_operations *cpu_ops[NR_CPUS];
 static const struct cpu_operations *supported_cpu_ops[] = {
 #ifdef CONFIG_SMP
 	&smp_spin_table_ops,
+#ifdef CONFIG_ARM_PARKING_PROTOCOL
+	&smp_parking_protocol_ops,
+#endif
 #endif
 	&cpu_psci_ops,
 	NULL,

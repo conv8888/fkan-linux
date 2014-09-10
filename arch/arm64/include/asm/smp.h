@@ -52,6 +52,11 @@ extern void set_smp_cross_call(void (*)(const struct cpumask *, unsigned int));
 extern void (*__smp_cross_call)(const struct cpumask *, unsigned int);
 
 /*
+ * Provide a function to signal a parked secondary CPU.
+ */
+extern void set_smp_boot_wakeup_call(void (*)(int cpu));
+
+/*
  * Called from the secondary holding pen, this is the secondary CPU entry point.
  */
 asmlinkage void secondary_start_kernel(void);

@@ -89,11 +89,14 @@ static inline bool acpi_has_cpu_in_madt(void)
 static inline void arch_fix_phys_package_id(int num, u32 slot) { }
 void __init acpi_smp_init_cpus(void);
 
+extern int acpi_get_cpu_parked_address(int cpu, u64 *addr);
+
 #else
 static inline void disable_acpi(void) { }
 static inline bool acpi_psci_present(void) { return false; }
 static inline bool acpi_psci_use_hvc(void) { return false; }
 static inline void acpi_smp_init_cpus(void) { }
+static inline int  acpi_get_cpu_parked_address(int cpu, u64 *addr) { return  -EOPNOTSUPP; }
 #endif /* CONFIG_ACPI */
 
 #endif /*_ASM_ACPI_H*/

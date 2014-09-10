@@ -643,6 +643,13 @@ static void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 
 	raw_spin_unlock_irqrestore(&irq_controller_lock, flags);
 }
+
+#ifdef CONFIG_ARM_PARKING_PROTOCOL
+static void gic_wakeup_parked_cpu(int cpu)
+{
+	gic_raise_softirq(cpumask_of(cpu), GIC_DIST_SOFTINT_NSATT);
+}
+#endif
 #endif
 
 #ifdef CONFIG_BL_SWITCHER
@@ -998,6 +1005,9 @@ void __init gic_init_bases(unsigned int gic_nr, int irq_start,
 #ifdef CONFIG_SMP
 		set_smp_cross_call(gic_raise_softirq);
 		register_cpu_notifier(&gic_cpu_notifier);
+#ifdef CONFIG_ARM_PARKING_PROTOCOL
+		set_smp_boot_wakeup_call(gic_wakeup_parked_cpu);
+#endif
 #endif
 		set_handle_irq(gic_handle_irq);
 	}

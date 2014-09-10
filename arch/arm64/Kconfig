@@ -268,6 +268,9 @@ config SMP
 
 	  If you don't know what to do here, say N.
 
+config ARM_PARKING_PROTOCOL
+	def_bool y if SMP
+
 config SCHED_MC
 	bool "Multi-core scheduler support"
 	depends on SMP
