@@ -695,6 +695,18 @@ static int xgbe_read_mmd_regs(struct xgbe_prv_data *pdata, int prtad,
 	else
 		mmd_address = (pdata->mdio_mmd << 16) | (mmd_reg & 0xffff);
 
+	if (XGBE_SEATTLE_A0) {
+		/* The PCS implementation has reversed the devices in
+		 * package registers so we need to change 05 to 06 and
+		 * 06 to 05 if being read (these registers are readonly
+		 * so no need to do this in the write function)
+		 */
+		if ((mmd_address & 0xffff) == 0x05)
+			mmd_address = (mmd_address & ~0xffff) | 0x06;
+		else if ((mmd_address & 0xffff) == 0x06)
+			mmd_address = (mmd_address & ~0xffff) | 0x05;
+	}
+
 	/* The PCS registers are accessed using mmio. The underlying APB3
 	 * management interface uses indirect addressing to access the MMD
 	 * register sets. This requires accessing of the PCS register in two

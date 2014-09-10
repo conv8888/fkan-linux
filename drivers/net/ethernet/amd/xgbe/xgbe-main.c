@@ -532,6 +532,7 @@ static int xgbe_resume(struct device *dev)
 #endif /* CONFIG_PM */
 
 static const struct of_device_id xgbe_of_match[] = {
+	{ .compatible = "amd,xgbe-seattle-v0a", },
 	{ .compatible = "amd,xgbe-seattle-v1a", },
 	{},
 };

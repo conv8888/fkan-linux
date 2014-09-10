@@ -425,6 +425,9 @@ void xgbe_get_all_hw_features(struct xgbe_prv_data *pdata)
 	hw_feat->rx_ch_cnt++;
 	hw_feat->tx_ch_cnt++;
 
+	/* A0 does not support NUMTC, hardcode it for now */
+	hw_feat->tc_cnt = XGBE_TC_CNT;
+
 	DBGPR("<--xgbe_get_all_hw_features\n");
 }
 
