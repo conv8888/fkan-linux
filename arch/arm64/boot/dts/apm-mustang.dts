@@ -45,6 +45,10 @@
 	status = "ok";
 };
 
-&xgenet {
+&usb0 {
+	status = "ok";
+};
+
+&usb1 {
 	status = "ok";
 };
