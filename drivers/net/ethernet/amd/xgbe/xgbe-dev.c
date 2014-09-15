@@ -130,7 +130,7 @@ static unsigned int xgbe_usec_to_riwt(struct xgbe_prv_data *pdata,
 
 	DBGPR("-->xgbe_usec_to_riwt\n");
 
-	rate = clk_get_rate(pdata->sysclk);
+	rate = pdata->sysclk_rate;
 
 	/*
 	 * Convert the input usec value to the watchdog timer value. Each
@@ -153,7 +153,7 @@ static unsigned int xgbe_riwt_to_usec(struct xgbe_prv_data *pdata,
 
 	DBGPR("-->xgbe_riwt_to_usec\n");
 
-	rate = clk_get_rate(pdata->sysclk);
+	rate = pdata->sysclk_rate;
 
 	/*
 	 * Convert the input watchdog timer value to the usec value. Each
