@@ -94,6 +94,9 @@ static int smp_parking_protocol_cpu_boot(unsigned int cpu)
 	__flush_dcache_area(mailbox, sizeof(*mailbox));
 	__smp_boot_wakeup(cpu);
 
+	/* temp hack for broken firmware */
+	sev();
+
 	iounmap(mailbox);
 
 	return 0;
