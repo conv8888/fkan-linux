@@ -62,7 +62,8 @@ enum ppi_nr {
 	MAX_TIMER_PPI
 };
 
-static int arch_timer_ppi[MAX_TIMER_PPI];
+int arch_timer_ppi[MAX_TIMER_PPI];
+EXPORT_SYMBOL(arch_timer_ppi);
 
 static struct clock_event_device __percpu *arch_timer_evt;
 

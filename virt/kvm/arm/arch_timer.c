@@ -21,9 +21,11 @@
 #include <linux/kvm.h>
 #include <linux/kvm_host.h>
 #include <linux/interrupt.h>
+#include <linux/acpi.h>
 
 #include <clocksource/arm_arch_timer.h>
 #include <asm/arch_timer.h>
+#include <asm/acpi.h>
 
 #include <kvm/arm_vgic.h>
 #include <kvm/arm_arch_timer.h>
@@ -244,60 +246,92 @@ static const struct of_device_id arch_timer_of_match[] = {
 	{},
 };
 
-int kvm_timer_hyp_init(void)
+static int kvm_timer_ppi_parse_dt(unsigned int *ppi)
 {
 	struct device_node *np;
-	unsigned int ppi;
-	int err;
-
-	timecounter = arch_timer_get_timecounter();
-	if (!timecounter)
-		return -ENODEV;
 
 	np = of_find_matching_node(NULL, arch_timer_of_match);
 	if (!np) {
-		kvm_err("kvm_arch_timer: can't find DT node\n");
 		return -ENODEV;
 	}
 
-	ppi = irq_of_parse_and_map(np, 2);
-	if (!ppi) {
-		kvm_err("kvm_arch_timer: no virtual timer interrupt\n");
-		err = -EINVAL;
-		goto out;
+	*ppi = irq_of_parse_and_map(np, 2);
+	if (*ppi == 0) {
+		of_node_put(np);
+		return -EINVAL;
 	}
 
+	return 0;
+}
+
+extern int acadia_kvm_acpi;
+extern int arch_timer_ppi[];
+
+static int kvm_timer_ppi_parse_acpi(unsigned int *ppi)
+
+{
+	/* retrieve VIRT_PPI info */
+	*ppi = arch_timer_ppi[2];
+
+	if (*ppi == 0)
+		return -EINVAL;
+	else
+		return 0;
+}
+
+int kvm_timer_hyp_init(void)
+{
+	unsigned int ppi;
+	int err;
+
+        timecounter = arch_timer_get_timecounter();
+        if (!timecounter)
+		return -ENODEV;
+
+	/* PPI DT parsing */
+	err = kvm_timer_ppi_parse_dt(&ppi);
+
+	/* if DT parsing fails, try ACPI next */
+	if (err && !acpi_disabled && acadia_kvm_acpi )
+		err = kvm_timer_ppi_parse_acpi(&ppi);
+
+	if (err) {
+		kvm_err("kvm_timer_hyp_init: can't find virtual timer info or "
+			"config virtual timer interrupt\n");
+		return err;
+	}
+
+	/* configure IRQ handler */
 	err = request_percpu_irq(ppi, kvm_arch_timer_handler,
-				 "kvm guest timer", kvm_get_running_vcpus());
-	if (err) {
-		kvm_err("kvm_arch_timer: can't request interrupt %d (%d)\n",
-			ppi, err);
-		goto out;
-	}
+                                 "kvm guest timer", kvm_get_running_vcpus());
+        if (err) {
+                kvm_err("kvm_arch_timer: can't request interrupt %d (%d)\n",
+                        ppi, err);
+                goto out;
+        }
 
-	host_vtimer_irq = ppi;
+        host_vtimer_irq = ppi;
 
-	err = __register_cpu_notifier(&kvm_timer_cpu_nb);
-	if (err) {
-		kvm_err("Cannot register timer CPU notifier\n");
-		goto out_free;
-	}
+        err = __register_cpu_notifier(&kvm_timer_cpu_nb);
+        if (err) {
+                kvm_err("Cannot register timer CPU notifier\n");
+                goto out_free;
+        }
 
-	wqueue = create_singlethread_workqueue("kvm_arch_timer");
-	if (!wqueue) {
-		err = -ENOMEM;
-		goto out_free;
-	}
+        wqueue = create_singlethread_workqueue("kvm_arch_timer");
+        if (!wqueue) {
+                err = -ENOMEM;
+                goto out_free;
+        }
 
-	kvm_info("%s IRQ%d\n", np->name, ppi);
-	on_each_cpu(kvm_timer_init_interrupt, NULL, 1);
+        kvm_info("timer IRQ%d\n", ppi);
+        on_each_cpu(kvm_timer_init_interrupt, NULL, 1);
 
-	goto out;
+        goto out;
 out_free:
-	free_percpu_irq(ppi, kvm_get_running_vcpus());
+        free_percpu_irq(ppi, kvm_get_running_vcpus());
 out:
-	of_node_put(np);
-	return err;
+        return err;
 }
 
 void kvm_timer_vcpu_terminate(struct kvm_vcpu *vcpu)
