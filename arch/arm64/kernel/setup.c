@@ -62,6 +62,9 @@
 #include <asm/efi.h>
 #include <asm/acpi.h>
 
+int acadia_kvm_acpi=0;
+EXPORT_SYMBOL(acadia_kvm_acpi);
+
 unsigned int processor_id;
 EXPORT_SYMBOL(processor_id);
 
@@ -426,6 +429,19 @@ void __init setup_arch(char **cmdline_p)
 #endif
 #endif
 }
+
+static int __init parse_kvm_acpi(char *arg)
+{
+	if (!arg)
+		return -EINVAL;
+	
+	if (strcmp(arg, "on") == 0) {
+		acadia_kvm_acpi = 1;
+	}
+
+	return 0;
+}
+early_param("kvmacpi", parse_kvm_acpi);
 
 static int __init arm64_device_init(void)
 {
