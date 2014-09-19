@@ -289,17 +289,19 @@ bool vgic_handle_mmio(struct kvm_vcpu *vcpu, struct kvm_run *run,
 #define irqchip_in_kernel(k)	(!!((k)->arch.vgic.in_kernel))
 #define vgic_initialized(k)	((k)->arch.vgic.ready)
 
-int vgic_v2_probe(struct device_node *vgic_node,
-		  const struct vgic_ops **ops,
-		  const struct vgic_params **params);
+int vgic_v2_dt_probe(struct device_node *vgic_node,
+		     const struct vgic_ops **ops,
+		     const struct vgic_params **params);
+int vgic_v2_acpi_probe(const struct vgic_ops **ops,
+		       const struct vgic_params **params);
 #ifdef CONFIG_ARM_GIC_V3
-int vgic_v3_probe(struct device_node *vgic_node,
-		  const struct vgic_ops **ops,
-		  const struct vgic_params **params);
+int vgic_v3_dt_probe(struct device_node *vgic_node,
+		     const struct vgic_ops **ops,
+		     const struct vgic_params **params);
 #else
-static inline int vgic_v3_probe(struct device_node *vgic_node,
-				const struct vgic_ops **ops,
-				const struct vgic_params **params)
+static inline int vgic_v3_dt_probe(struct device_node *vgic_node,
+				   const struct vgic_ops **ops,
+				   const struct vgic_params **params)
 {
 	return -ENODEV;
 }

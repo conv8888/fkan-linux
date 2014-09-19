@@ -19,6 +19,7 @@
 #include <linux/kvm.h>
 #include <linux/kvm_host.h>
 #include <linux/interrupt.h>
+#include <linux/acpi.h>
 #include <linux/io.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -26,6 +27,7 @@
 
 #include <linux/irqchip/arm-gic.h>
 
+#include <asm/acpi.h>
 #include <asm/kvm_emulate.h>
 #include <asm/kvm_arm.h>
 #include <asm/kvm_mmu.h>
@@ -159,7 +161,7 @@ static const struct vgic_ops vgic_v2_ops = {
 static struct vgic_params vgic_v2_params;
 
 /**
- * vgic_v2_probe - probe for a GICv2 compatible interrupt controller in DT
+ * vgic_v2_dt_probe - probe for a GICv2 compatible interrupt controller in DT
  * @node:	pointer to the DT node
  * @ops: 	address of a pointer to the GICv2 operations
  * @params:	address of a pointer to HW-specific parameters
@@ -168,7 +170,7 @@ static struct vgic_params vgic_v2_params;
  * in *ops and the HW parameters in *params. Returns an error code
  * otherwise.
  */
-int vgic_v2_probe(struct device_node *vgic_node,
+int vgic_v2_dt_probe(struct device_node *vgic_node,
 		  const struct vgic_ops **ops,
 		  const struct vgic_params **params)
 {
@@ -243,5 +245,74 @@ out_unmap:
 	iounmap(vgic->vctrl_base);
 out:
 	of_node_put(vgic_node);
+	return ret;
+}
+
+struct acpi_madt_generic_interrupt *vgic_acpi;
+static void gic_get_acpi_header(struct acpi_subtable_header *header)
+{
+	vgic_acpi = (struct acpi_madt_generic_interrupt *)header;
+}
+
+int vgic_v2_acpi_probe(const struct vgic_ops **ops,
+		       const struct vgic_params **params)
+{
+	struct vgic_params *vgic = &vgic_v2_params;
+	int irq_mode, ret;
+
+	/* MADT table */
+	ret = acpi_table_parse_madt(ACPI_MADT_TYPE_GENERIC_INTERRUPT,
+			(acpi_tbl_entry_handler)gic_get_acpi_header, 0);
+	if (!ret) {
+		pr_err("Failed to get MADT VGIC CPU entry\n");
+		ret = -ENODEV;
+		goto out;
+	}
+
+	/* IRQ trigger mode */
+	irq_mode = (vgic_acpi->flags & ACPI_MADT_VGIC_IRQ_MODE) ?
+		ACPI_EDGE_SENSITIVE : ACPI_LEVEL_SENSITIVE;
+	/* According to GIC-400 manual, all PPIs are active-LOW, level
+	 *  sensative. We register IRQ as active-low.
+	 */
+	vgic->maint_irq = acpi_register_gsi(NULL, vgic_acpi->vgic_interrupt,
+					    irq_mode, ACPI_ACTIVE_LOW);
+	if (!vgic->maint_irq) {
+		pr_err("Cannot register VGIC ACPI maintenance irq\n");
+		ret = -ENXIO;
+		goto out;
+	}
+
+	/* GICH resource */
+	vgic->vctrl_base = ioremap(vgic_acpi->gich_base_address, SZ_8K);
+	if (!vgic->vctrl_base) {
+		pr_err("cannot ioremap GICH memory\n");
+		ret = -ENOMEM;
+		goto out;
+	}
+
+        vgic->nr_lr = readl_relaxed(vgic->vctrl_base + GICH_VTR);
+        vgic->nr_lr = (vgic->nr_lr & 0x3f) + 1;
+
+        ret = create_hyp_io_mappings(vgic->vctrl_base,
+                                     vgic->vctrl_base + SZ_8K,
+                                     vgic_acpi->gich_base_address);
+        if (ret) {
+                kvm_err("Cannot map GICH into hyp\n");
+		goto out;
+        }
+
+	vgic->vcpu_base = vgic_acpi->gicv_base_address;
+
+	kvm_info("GICH base=0x%llx, GICV base=0x%llx, IRQ=%d\n",
+		 (unsigned long long)vgic_acpi->gich_base_address,
+		 (unsigned long long)vgic_acpi->gicv_base_address,
+		 vgic->maint_irq);
+
+	vgic->type = VGIC_V2;
+	*ops = &vgic_v2_ops;
+	*params = vgic;
+
+out:
 	return ret;
 }

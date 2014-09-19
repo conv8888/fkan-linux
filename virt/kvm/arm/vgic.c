@@ -25,9 +25,11 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/uaccess.h>
+#include <linux/acpi.h>
 
 #include <linux/irqchip/arm-gic.h>
 
+#include <asm/acpi.h>
 #include <asm/kvm_emulate.h>
 #include <asm/kvm_arm.h>
 #include <asm/kvm_mmu.h>
@@ -2427,10 +2429,12 @@ static struct notifier_block vgic_cpu_nb = {
 };
 
 static const struct of_device_id vgic_ids[] = {
-	{ .compatible = "arm,cortex-a15-gic", .data = vgic_v2_probe, },
-	{ .compatible = "arm,gic-v3", .data = vgic_v3_probe, },
+	{ .compatible = "arm,cortex-a15-gic", .data = vgic_v2_dt_probe, },
+	{ .compatible = "arm,gic-v3", .data = vgic_v3_dt_probe, },
 	{},
 };
+
+extern int acadia_kvm_acpi;
 
 int kvm_vgic_hyp_init(void)
 {
@@ -2438,20 +2442,26 @@ int kvm_vgic_hyp_init(void)
 	const int (*vgic_probe)(struct device_node *,const struct vgic_ops **,
 				const struct vgic_params **);
 	struct device_node *vgic_node;
-	int ret;
+	int ret = -ENODEV;
 
-	vgic_node = of_find_matching_node_and_match(NULL,
-						    vgic_ids, &matched_id);
-	if (!vgic_node) {
-		kvm_err("error: no compatible GIC node found\n");
-		return -ENODEV;
+	/* probe VGIC */
+	if (vgic_node = of_find_matching_node_and_match(NULL,
+				vgic_ids, &matched_id)) {
+		/* probe VGIC in DT */
+		vgic_probe = matched_id->data;
+		ret = vgic_probe(vgic_node, &vgic_ops, &vgic);
+	}
+	else if (!acpi_disabled && acadia_kvm_acpi) {
+		/* probe VGIC in ACPI */
+		ret = vgic_v2_acpi_probe(&vgic_ops, &vgic);
 	}
 
-	vgic_probe = matched_id->data;
-	ret = vgic_probe(vgic_node, &vgic_ops, &vgic);
-	if (ret)
+	if (ret) {
+		kvm_err("error: no compatible GIC info found\n");
 		return ret;
+	}
 
+	/* configuration */
 	ret = request_percpu_irq(vgic->maint_irq, vgic_maintenance_handler,
 				 "vgic", kvm_get_running_vcpus());
 	if (ret) {
