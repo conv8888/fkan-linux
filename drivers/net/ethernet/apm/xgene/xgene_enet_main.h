@@ -31,6 +31,7 @@
 #include <linux/prefetch.h>
 #include <linux/if_vlan.h>
 #include <linux/phy.h>
+#include <linux/acpi.h>
 #include "xgene_enet_hw.h"
 
 #define XGENE_DRV_VERSION	"v1.0"

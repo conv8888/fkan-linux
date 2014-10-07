@@ -579,9 +579,11 @@ static void xgene_enet_reset(struct xgene_enet_pdata *pdata)
 {
 	u32 val;
 
-	clk_prepare_enable(pdata->clk);
-	clk_disable_unprepare(pdata->clk);
-	clk_prepare_enable(pdata->clk);
+	if (pdata->clk) {
+		clk_prepare_enable(pdata->clk);
+		clk_disable_unprepare(pdata->clk);
+		clk_prepare_enable(pdata->clk);
+	}
 	xgene_enet_ecc_init(pdata);
 	xgene_enet_config_ring_if_assoc(pdata);
 
@@ -647,15 +649,20 @@ static int xgene_enet_phy_connect(struct net_device *ndev)
 	struct phy_device *phy_dev;
 	struct device *dev = &pdata->pdev->dev;
 
-	phy_np = of_parse_phandle(dev->of_node, "phy-handle", 0);
-	if (!phy_np) {
-		netdev_dbg(ndev, "No phy-handle found\n");
-		return -ENODEV;
+	if (dev->of_node) {
+		phy_np = of_parse_phandle(dev->of_node, "phy-handle", 0);
+		if (!phy_np) {
+			netdev_dbg(ndev, "No phy-handle found in DT\n");
+			return -ENODEV;
+		}
+		pdata->phy_dev = of_phy_find_device(phy_np);
 	}
 
-	phy_dev = of_phy_connect(ndev, phy_np, &xgene_enet_adjust_link,
-				 0, pdata->phy_mode);
-	if (!phy_dev) {
+	phy_dev = pdata->phy_dev;
+
+	if (phy_dev == NULL ||
+	    phy_connect_direct(ndev, phy_dev, &xgene_enet_adjust_link,
+			       pdata->phy_mode)) {
 		netdev_err(ndev, "Could not connect to PHY\n");
 		return  -ENODEV;
 	}
@@ -665,10 +672,51 @@ static int xgene_enet_phy_connect(struct net_device *ndev)
 			      ~SUPPORTED_100baseT_Half &
 			      ~SUPPORTED_1000baseT_Half;
 	phy_dev->advertising = phy_dev->supported;
-	pdata->phy_dev = phy_dev;
 
 	return 0;
 }
+
+#ifdef CONFIG_ACPI
+static int xgene_acpi_mdiobus_register(struct xgene_enet_pdata *pdata,
+	struct mii_bus *mdio)
+{
+	struct device *dev = &pdata->pdev->dev;
+	struct phy_device *phy;
+	int i, ret;
+	u32 phy_id;
+
+	/* Mask out all PHYs from auto probing. */
+	mdio->phy_mask = ~0;
+
+	/* Clear all the IRQ properties */
+	if (mdio->irq)
+		for (i = 0; i < PHY_MAX_ADDR; i++)
+			mdio->irq[i] = PHY_POLL;
+
+	/* Register the MDIO bus */
+	ret = mdiobus_register(mdio);
+	if (ret)
+		return ret;
+
+	ret = device_property_read_u32(dev, "phy-channel", &phy_id);
+	if (ret)
+		return -EINVAL;
+
+	phy = get_phy_device(mdio, phy_id, true);
+	if (!phy || IS_ERR(phy))
+		return -EIO;
+
+	ret = phy_device_register(phy);
+	if (ret)
+		phy_device_free(phy);
+	else
+		pdata->phy_dev = phy;
+
+	return ret;
+}
+#else
+#define xgene_acpi_mdiobus_register(a, b) -1
+#endif
 
 int xgene_enet_mdio_config(struct xgene_enet_pdata *pdata)
 {
@@ -686,7 +734,7 @@ int xgene_enet_mdio_config(struct xgene_enet_pdata *pdata)
 		}
 	}
 
-	if (!mdio_np) {
+	if (dev->of_node && !mdio_np) {
 		netdev_dbg(ndev, "No mdio node in the dts\n");
 		return -ENXIO;
 	}
@@ -704,7 +752,10 @@ int xgene_enet_mdio_config(struct xgene_enet_pdata *pdata)
 	mdio_bus->priv = pdata;
 	mdio_bus->parent = &ndev->dev;
 
-	ret = of_mdiobus_register(mdio_bus, mdio_np);
+	if (dev->of_node)
+		ret = of_mdiobus_register(mdio_bus, mdio_np);
+	else
+		ret = xgene_acpi_mdiobus_register(pdata, mdio_bus);
 	if (ret) {
 		netdev_err(ndev, "Failed to register MDIO bus\n");
 		mdiobus_free(mdio_bus);

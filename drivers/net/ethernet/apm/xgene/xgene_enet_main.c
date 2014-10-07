@@ -746,6 +746,42 @@ static const struct net_device_ops xgene_ndev_ops = {
 	.ndo_set_mac_address = xgene_enet_set_mac_address,
 };
 
+#ifdef CONFIG_ACPI
+static int acpi_get_mac_address(struct device *dev,
+				unsigned char *addr)
+{
+	int ret;
+
+	ret = device_property_read_u8_array(dev, "mac-address", addr, 6);
+	if (ret)
+		return 0;
+
+	return 6;
+}
+
+static int acpi_get_phy_mode(struct device *dev)
+{
+	int i, ret, phy_mode;
+	char *modestr;
+
+	ret = device_property_read_string(dev, "phy-mode", &modestr);
+	if (ret)
+		return -1;
+
+	phy_mode = -1;
+	for (i = 0; i < PHY_INTERFACE_MODE_MAX; i++) {
+		if (!strcasecmp(modestr, phy_modes(i))) {
+			phy_mode = i;
+			break;
+		}
+	}
+	return phy_mode;
+}
+#else
+#define acpi_get_mac_address(a, b, c) 0
+#define acpi_get_phy_mode(a) -1
+#endif
+
 static int xgene_enet_get_resources(struct xgene_enet_pdata *pdata)
 {
 	struct platform_device *pdev;
@@ -761,6 +797,8 @@ static int xgene_enet_get_resources(struct xgene_enet_pdata *pdata)
 	ndev = pdata->ndev;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "enet_csr");
+	if (!res)
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
 		dev_err(dev, "Resource enet_csr not defined\n");
 		return -ENODEV;
@@ -772,6 +810,8 @@ static int xgene_enet_get_resources(struct xgene_enet_pdata *pdata)
 	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ring_csr");
+	if (!res)
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	if (!res) {
 		dev_err(dev, "Resource ring_csr not defined\n");
 		return -ENODEV;
@@ -784,6 +824,8 @@ static int xgene_enet_get_resources(struct xgene_enet_pdata *pdata)
 	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ring_cmd");
+	if (!res)
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 	if (!res) {
 		dev_err(dev, "Resource ring_cmd not defined\n");
 		return -ENODEV;
@@ -806,11 +848,13 @@ static int xgene_enet_get_resources(struct xgene_enet_pdata *pdata)
 	mac = of_get_mac_address(dev->of_node);
 	if (mac)
 		memcpy(ndev->dev_addr, mac, ndev->addr_len);
-	else
+	else if (!acpi_get_mac_address(dev, ndev->dev_addr))
 		eth_hw_addr_random(ndev);
 	memcpy(ndev->perm_addr, ndev->dev_addr, ndev->addr_len);
 
 	pdata->phy_mode = of_get_phy_mode(pdev->dev.of_node);
+	if (pdata->phy_mode < 0)
+		pdata->phy_mode = acpi_get_phy_mode(dev);
 	if (pdata->phy_mode < 0) {
 		dev_err(dev, "Unable to get phy-connection-type\n");
 		return pdata->phy_mode;
@@ -823,11 +867,12 @@ static int xgene_enet_get_resources(struct xgene_enet_pdata *pdata)
 	}
 
 	pdata->clk = devm_clk_get(&pdev->dev, NULL);
-	ret = IS_ERR(pdata->clk);
 	if (IS_ERR(pdata->clk)) {
-		dev_err(&pdev->dev, "can't get clock\n");
-		ret = PTR_ERR(pdata->clk);
-		return ret;
+		/*
+		 * Not necessarily an error. Firmware may have
+		 * set up the clock already.
+		 */
+		pdata->clk = NULL;
 	}
 
 	base_addr = pdata->base_addr;
@@ -875,7 +920,7 @@ static int xgene_enet_init_hw(struct xgene_enet_pdata *pdata)
 	pdata->port_ops->cle_bypass(pdata, dst_ring_num, buf_pool->id);
 	pdata->mac_ops->init(pdata);
 
-	return ret;
+	return 0;
 }
 
 static void xgene_enet_setup_ops(struct xgene_enet_pdata *pdata)
@@ -936,7 +981,7 @@ static int xgene_enet_probe(struct platform_device *pdev)
 		goto err;
 	}
 
-	ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
+	ret = dma_coerce_mask_and_coherent(dev, DMA_BIT_MASK(64));
 	if (ret) {
 		netdev_err(ndev, "No usable DMA configuration\n");
 		goto err;
@@ -983,6 +1028,14 @@ static int xgene_enet_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_ACPI
+static const struct acpi_device_id xgene_enet_acpi_match[] = {
+	{ "APMC0D05", },
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, xgene_enet_acpi_match);
+#endif
+
 static struct of_device_id xgene_enet_match[] = {
 	{.compatible = "apm,xgene-enet",},
 	{},
@@ -994,6 +1047,7 @@ static struct platform_driver xgene_enet_driver = {
 	.driver = {
 		   .name = "xgene-enet",
 		   .of_match_table = xgene_enet_match,
+		   .acpi_match_table = ACPI_PTR(xgene_enet_acpi_match),
 	},
 	.probe = xgene_enet_probe,
 	.remove = xgene_enet_remove,
