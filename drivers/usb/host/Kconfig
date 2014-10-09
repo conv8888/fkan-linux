@@ -34,6 +34,14 @@ config USB_XHCI_PCI
 config USB_XHCI_PLATFORM
 	tristate
 
+config USB_XHCI_XGENE
+	tristate "xHCI support for APM X-Gene SoC"
+	select USB_XHCI_PLATFORM
+	depends on ARCH_XGENE || COMPILE_TEST
+	---help---
+	  Say 'Y' to enable the support for the xHCI host controller
+	  found in APM X-Gene SoC platform.
+
 config USB_XHCI_MVEBU
 	tristate "xHCI support for Marvell Armada 375/38x"
 	select USB_XHCI_PLATFORM
