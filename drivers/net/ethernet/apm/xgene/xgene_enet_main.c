@@ -765,7 +765,7 @@ static int xgene_enet_get_resources(struct xgene_enet_pdata *pdata)
 		dev_err(dev, "Resource enet_csr not defined\n");
 		return -ENODEV;
 	}
-	pdata->base_addr = devm_ioremap_resource(dev, res);
+	pdata->base_addr = devm_ioremap(dev, res->start, resource_size(res));
 	if (IS_ERR(pdata->base_addr)) {
 		dev_err(dev, "Unable to retrieve ENET Port CSR region\n");
 		return PTR_ERR(pdata->base_addr);
@@ -776,7 +776,8 @@ static int xgene_enet_get_resources(struct xgene_enet_pdata *pdata)
 		dev_err(dev, "Resource ring_csr not defined\n");
 		return -ENODEV;
 	}
-	pdata->ring_csr_addr = devm_ioremap_resource(dev, res);
+	pdata->ring_csr_addr = devm_ioremap(dev, res->start,
+							resource_size(res));
 	if (IS_ERR(pdata->ring_csr_addr)) {
 		dev_err(dev, "Unable to retrieve ENET Ring CSR region\n");
 		return PTR_ERR(pdata->ring_csr_addr);
@@ -787,7 +788,8 @@ static int xgene_enet_get_resources(struct xgene_enet_pdata *pdata)
 		dev_err(dev, "Resource ring_cmd not defined\n");
 		return -ENODEV;
 	}
-	pdata->ring_cmd_addr = devm_ioremap_resource(dev, res);
+	pdata->ring_cmd_addr = devm_ioremap(dev, res->start,
+							resource_size(res));
 	if (IS_ERR(pdata->ring_cmd_addr)) {
 		dev_err(dev, "Unable to retrieve ENET Ring command region\n");
 		return PTR_ERR(pdata->ring_cmd_addr);
