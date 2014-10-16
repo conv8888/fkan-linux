@@ -236,6 +236,12 @@ static const struct of_device_id usb_xhci_of_match[] = {
 MODULE_DEVICE_TABLE(of, usb_xhci_of_match);
 #endif
 
+static const struct acpi_device_id xhci_acpi_match[] = {
+	{ "PRP0001", },
+	{ }
+};
+MODULE_DEVICE_TABLE(acpi, xhci_acpi_match);
+
 static struct platform_driver usb_xhci_driver = {
 	.probe	= xhci_plat_probe,
 	.remove	= xhci_plat_remove,
@@ -243,6 +249,7 @@ static struct platform_driver usb_xhci_driver = {
 		.name = "xhci-hcd",
 		.pm = DEV_PM_OPS,
 		.of_match_table = of_match_ptr(usb_xhci_of_match),
+		.acpi_match_table = xhci_acpi_match,
 	},
 };
 MODULE_ALIAS("platform:xhci-hcd");
