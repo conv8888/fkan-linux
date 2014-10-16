@@ -922,8 +922,10 @@ static bool acpi_of_driver_match_device(struct device *dev,
 		obj = &of_compatible->package.elements[i];
 
 		for (id = drv->of_match_table; id->compatible[0]; id++)
-			if (!strcasecmp(obj->string.pointer, id->compatible))
+			if (!strncasecmp(obj->string.pointer,
+				id->compatible, strlen(id->compatible))) {
 				return true;
+			}
 	}
 
 	return false;
