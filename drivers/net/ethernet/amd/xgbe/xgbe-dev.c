@@ -684,6 +684,23 @@ static int xgbe_set_mac_address(struct xgbe_prv_data *pdata, u8 *addr)
 	return 0;
 }
 
+int xgbe_get_mac_address(struct xgbe_prv_data *pdata, u8 *addr)
+{
+	unsigned int mac_addr_hi, mac_addr_lo;
+
+	mac_addr_hi = XGMAC_IOREAD(pdata, MAC_MACA0HR);
+	mac_addr_lo = XGMAC_IOREAD(pdata, MAC_MACA0LR);
+
+	addr[0] = mac_addr_lo;
+	addr[1] = mac_addr_lo >> 8;
+	addr[2] = mac_addr_lo >> 16;
+	addr[3] = mac_addr_lo >> 24;
+	addr[4] = mac_addr_hi;
+	addr[5] = mac_addr_hi >> 8;
+
+	return 0;
+}
+
 static int xgbe_read_mmd_regs(struct xgbe_prv_data *pdata, int prtad,
 			      int mmd_reg)
 {
@@ -2546,6 +2563,7 @@ void xgbe_init_function_ptrs_dev(struct xgbe_hw_if *hw_if)
 	hw_if->set_all_multicast_mode = xgbe_set_all_multicast_mode;
 	hw_if->add_mac_addresses = xgbe_add_mac_addresses;
 	hw_if->set_mac_address = xgbe_set_mac_address;
+	hw_if->get_mac_address = xgbe_get_mac_address;
 
 	hw_if->enable_rx_csum = xgbe_enable_rx_csum;
 	hw_if->disable_rx_csum = xgbe_disable_rx_csum;

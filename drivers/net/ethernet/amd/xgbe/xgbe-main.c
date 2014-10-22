@@ -299,7 +299,15 @@ static int xgbe_acpi_support(struct xgbe_prv_data *pdata)
 	if (!is_valid_ether_addr(pdata->mac_addr)) {
 		dev_err(dev, "invalid %s acpi property\n",
 			XGBE_ACPI_MAC_ADDR);
+#if 0
 		return -EINVAL;
+#else
+		pdata->hw_if.get_mac_address(pdata, pdata->mac_addr);
+		if (!is_valid_ether_addr(pdata->mac_addr)) {
+			dev_err(dev, "invalid MAC address, using random address\n");
+			eth_random_addr(pdata->mac_addr);
+		}
+#endif
 	}
 
 	/* Retrieve the PHY mode - it must be "xgmii" */
@@ -463,6 +471,11 @@ static int xgbe_probe(struct platform_device *pdev)
 		goto err_io;
 	}
 
+	/* Set all the function pointers */
+	xgbe_init_all_fptrs(pdata);
+	hw_if = &pdata->hw_if;
+	desc_if = &pdata->desc_if;
+
 	/* Obtain device settings */
 	if (pdata->adev && !acpi_disabled)
 		ret = xgbe_acpi_support(pdata);
@@ -490,11 +503,6 @@ static int xgbe_probe(struct platform_device *pdev)
 	netdev->irq = ret;
 	netdev->base_addr = (unsigned long)pdata->xgmac_regs;
 	memcpy(netdev->dev_addr, pdata->mac_addr, netdev->addr_len);
-
-	/* Set all the function pointers */
-	xgbe_init_all_fptrs(pdata);
-	hw_if = &pdata->hw_if;
-	desc_if = &pdata->desc_if;
 
 	/* Issue software reset to device */
 	hw_if->exit(pdata);

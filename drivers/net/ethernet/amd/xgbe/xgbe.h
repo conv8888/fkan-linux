@@ -434,6 +434,7 @@ struct xgbe_hw_if {
 	int (*set_all_multicast_mode)(struct xgbe_prv_data *, unsigned int);
 	int (*add_mac_addresses)(struct xgbe_prv_data *);
 	int (*set_mac_address)(struct xgbe_prv_data *, u8 *addr);
+	int (*get_mac_address)(struct xgbe_prv_data *, u8 *addr);
 
 	int (*enable_rx_csum)(struct xgbe_prv_data *);
 	int (*disable_rx_csum)(struct xgbe_prv_data *);
