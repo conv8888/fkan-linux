@@ -102,9 +102,38 @@ static int smp_parking_protocol_cpu_boot(unsigned int cpu)
 	return 0;
 }
 
+#ifdef CONFIG_HOTPLUG_CPU
+#define CPU_REG_PAGE	0x7c0c0000
+#define CPU_REG_OFFSET	0x100000
+#define CPU_RST_CMD	0x2
+static void smp_parking_protocol_cpu_die(unsigned int cpu)
+{
+	void __iomem *rst_reg;
+	u64 cpureg;
+
+	cpureg = CPU_REG_PAGE + (CPU_REG_OFFSET * cpu);
+	rst_reg = ioremap(cpureg, 0x100);
+	if (!rst_reg)
+		return;
+	rst_reg += 4;
+	
+	/*
+	 * Before we throw the switch, lets clean house
+	 */
+	flush_cache_all();
+
+	writel(CPU_RST_CMD, rst_reg);
+
+	pr_crit("unable to power off CPU%u\n", cpu);
+}
+#endif
+
 const struct cpu_operations smp_parking_protocol_ops = {
 	.name		= "parking-protocol",
 	.cpu_init	= smp_parking_protocol_cpu_init,
 	.cpu_prepare	= smp_parking_protocol_cpu_prepare,
 	.cpu_boot	= smp_parking_protocol_cpu_boot,
+#ifdef CONFIG_HOTPLUG_CPU
+	.cpu_die	= smp_parking_protocol_cpu_die,
+#endif
 };
